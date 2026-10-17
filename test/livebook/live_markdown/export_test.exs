@@ -1422,4 +1422,30 @@ defmodule Livebook.LiveMarkdown.ExportTest do
       end
     end)
   end
+
+  test "includes read_only metadata when set to true" do
+    notebook = %{
+      Notebook.new()
+      | name: "My Notebook",
+        read_only: true,
+        sections: []
+    }
+
+    {document, []} = Export.notebook_to_livemd(notebook, include_stamp: false)
+
+    assert document =~ ~s/"read_only":true/
+  end
+
+  test "omits read_only metadata when set to false" do
+    notebook = %{
+      Notebook.new()
+      | name: "My Notebook",
+        read_only: false,
+        sections: []
+    }
+
+    {document, []} = Export.notebook_to_livemd(notebook, include_stamp: false)
+
+    refute document =~ "read_only"
+  end
 end

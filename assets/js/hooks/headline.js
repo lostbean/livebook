@@ -48,7 +48,7 @@ const Headline = {
   },
 
   getProps() {
-    return parseHookProps(this.el, ["id", "on-value-change", "metadata"]);
+    return parseHookProps(this.el, ["id", "on-value-change", "metadata", "read-only"]);
   },
 
   initializeHeadingEl() {
@@ -100,7 +100,7 @@ const Headline = {
   },
 
   handleInsertModeChanged(insertMode) {
-    if (this.isFocused && !this.insertMode && insertMode) {
+    if (this.isFocused && !this.insertMode && insertMode && !this.props.readOnly) {
       this.insertMode = insertMode;
       // While in insert mode, ignore the incoming changes
       this.el.setAttribute("phx-update", "ignore");

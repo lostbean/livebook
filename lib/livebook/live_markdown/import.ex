@@ -421,6 +421,9 @@ defmodule Livebook.LiveMarkdown.Import do
       {"persist_outputs", persist_outputs}, {attrs, messages} ->
         {Map.put(attrs, :persist_outputs, persist_outputs), messages}
 
+      {"read_only", read_only}, {attrs, messages} when is_boolean(read_only) ->
+        {Map.put(attrs, :read_only, read_only), messages}
+
       {"autosave_interval_s", autosave_interval_s}, {attrs, messages} ->
         {Map.put(attrs, :autosave_interval_s, autosave_interval_s), messages}
 

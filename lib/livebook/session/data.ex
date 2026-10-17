@@ -258,6 +258,7 @@ defmodule Livebook.Session.Data do
           | {:app_deactivate, client_id()}
           | {:app_shutdown, client_id()}
           | {:set_notebook_deployment_group, client_id(), String.t()}
+          | {:reload_from_file, client_id(), Notebook.t()}
 
   @type action ::
           :connect_runtime
@@ -1171,6 +1172,13 @@ defmodule Livebook.Session.Data do
     end
   end
 
+  def apply_operation(data, {:reload_from_file, _client_id, new_notebook}) do
+    data
+    |> with_actions()
+    |> reload_from_file(new_notebook)
+    |> wrap_ok()
+  end
+
   # ===
 
   defp with_actions(data, actions \\ []), do: {data, actions}
@@ -1180,6 +1188,122 @@ defmodule Livebook.Session.Data do
   defp set_notebook_attributes({data, _} = data_actions, attrs) do
     data_actions
     |> set!(notebook: Map.merge(data.notebook, attrs))
+  end
+
+  defp reload_from_file({data, _} = data_actions, new_notebook) do
+    old_cells = Notebook.cells_with_section(data.notebook)
+    new_cells = Notebook.cells_with_section(new_notebook)
+
+    # Build a mapping from old cell source digests to cell ids/infos
+    # so we can identify unchanged cells in the new notebook
+    old_cell_map =
+      for {cell, _section} <- old_cells, is_binary(cell.source), into: %{} do
+        digest = :erlang.md5(cell.source)
+        {digest, cell.id}
+      end
+
+    old_cells_map =
+      for {cell, _section} <- old_cells, into: %{} do
+        {cell.id, cell}
+      end
+
+    # Walk through new cells, reusing old cell IDs where the source matches
+    {cell_id_mapping, _used_old_ids} =
+      Enum.map_reduce(new_cells, MapSet.new(), fn {cell, _section}, used_ids ->
+        digest = is_binary(cell.source) && :erlang.md5(cell.source)
+        old_id = digest && old_cell_map[digest]
+
+        if old_id != nil and not MapSet.member?(used_ids, old_id) do
+          {{cell.id, old_id}, MapSet.put(used_ids, old_id)}
+        else
+          {{cell.id, nil}, used_ids}
+        end
+      end)
+
+    cell_id_mapping = Map.new(cell_id_mapping)
+
+    # Build the new notebook with remapped cell IDs
+    new_notebook = remap_notebook_cell_ids(new_notebook, cell_id_mapping, old_cells_map)
+
+    # Preserve read_only from old notebook (don't let file reload override it)
+    new_notebook = %{new_notebook | read_only: data.notebook.read_only}
+
+    # Build new section_infos
+    new_section_infos =
+      for section <- Notebook.all_sections(new_notebook), into: %{} do
+        info = data.section_infos[section.id] || new_section_info()
+        {section.id, info}
+      end
+
+    # Build new cell_infos, preserving eval state for reused cells
+    new_cell_infos =
+      for section <- Notebook.all_sections(new_notebook),
+          cell <- section.cells,
+          into: %{} do
+        case data.cell_infos[cell.id] do
+          nil ->
+            {cell.id, new_cell_info(cell, data.clients_map)}
+
+          old_info ->
+            {cell.id, old_info}
+        end
+      end
+
+    # Build new input_infos
+    new_input_infos =
+      for section <- Notebook.all_sections(new_notebook),
+          cell <- section.cells,
+          Cell.evaluable?(cell),
+          output <- cell.outputs,
+          input <- Cell.find_inputs_in_output(output),
+          into: %{} do
+        existing = data.input_infos[input.id]
+
+        if existing do
+          {input.id, existing}
+        else
+          {input.id, input_info(input.attrs.default)}
+        end
+      end
+
+    data_actions
+    |> set!(
+      notebook: new_notebook,
+      section_infos: new_section_infos,
+      cell_infos: new_cell_infos,
+      input_infos: new_input_infos
+    )
+    |> update_validity_and_evaluation()
+  end
+
+  defp remap_notebook_cell_ids(notebook, cell_id_mapping, old_cells_map) do
+    remap_cell = fn cell ->
+      case cell_id_mapping[cell.id] do
+        nil ->
+          cell
+
+        old_id ->
+          old_cell = old_cells_map[old_id]
+
+          if Map.has_key?(cell, :outputs) do
+            %{cell | id: old_id, outputs: old_cell.outputs}
+          else
+            %{cell | id: old_id}
+          end
+      end
+    end
+
+    setup_section = %{
+      notebook.setup_section
+      | cells: Enum.map(notebook.setup_section.cells, remap_cell)
+    }
+
+    sections =
+      Enum.map(notebook.sections, fn section ->
+        %{section | cells: Enum.map(section.cells, remap_cell)}
+      end)
+
+    %{notebook | setup_section: setup_section, sections: sections}
   end
 
   defp insert_section({data, _} = data_actions, index, section) do

@@ -36,10 +36,12 @@ defmodule LivebookWeb.SessionLive.PersistenceComponent do
     {file, assigns} = Map.pop!(assigns, :file)
     {persist_outputs, assigns} = Map.pop!(assigns, :persist_outputs)
     {autosave_interval_s, assigns} = Map.pop!(assigns, :autosave_interval_s)
+    {read_only, assigns} = Map.pop!(assigns, :read_only)
 
     attrs = %{
       persist_outputs: persist_outputs,
-      autosave_interval_s: autosave_interval_s
+      autosave_interval_s: autosave_interval_s,
+      read_only: read_only
     }
 
     socket =
@@ -115,6 +117,11 @@ defmodule LivebookWeb.SessionLive.PersistenceComponent do
               label="Persist outputs"
               value={@new_attrs.persist_outputs}
             />
+            <.checkbox_field
+              name="read_only"
+              label="Read-only (watch file for changes)"
+              value={@new_attrs.read_only}
+            />
           </div>
         </form>
       </div>
@@ -142,16 +149,22 @@ defmodule LivebookWeb.SessionLive.PersistenceComponent do
   @impl true
   def handle_event(
         "set_options",
-        %{"persist_outputs" => persist_outputs, "autosave_interval_s" => autosave_interval_s},
+        %{
+          "persist_outputs" => persist_outputs,
+          "autosave_interval_s" => autosave_interval_s,
+          "read_only" => read_only
+        },
         socket
       ) do
     persist_outputs = persist_outputs == "true"
     autosave_interval_s = parse_optional_integer(autosave_interval_s)
+    read_only = read_only == "true"
 
     {:noreply,
      socket
      |> put_new_attr(:persist_outputs, persist_outputs)
-     |> put_new_attr(:autosave_interval_s, autosave_interval_s)}
+     |> put_new_attr(:autosave_interval_s, autosave_interval_s)
+     |> put_new_attr(:read_only, read_only)}
   end
 
   def handle_event("save", %{}, socket) do

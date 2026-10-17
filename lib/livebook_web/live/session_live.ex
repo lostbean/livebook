@@ -214,6 +214,23 @@ defmodule LivebookWeb.SessionLive do
   end
 
   @impl true
+  def handle_event(event, _params, socket)
+      when event in [
+             "append_section",
+             "insert_section_below",
+             "insert_branching_section_below",
+             "insert_cell_below",
+             "delete_cell",
+             "set_notebook_name",
+             "set_section_name",
+             "move_cell",
+             "move_section",
+             "delete_section",
+             "apply_cell_delta"
+           ] and socket.private.data.notebook.read_only do
+    {:noreply, socket}
+  end
+
   def handle_event("append_section", %{}, socket) do
     idx = length(socket.private.data.notebook.sections)
     Session.insert_section(socket.assigns.session.pid, idx)
@@ -1828,6 +1845,7 @@ defmodule LivebookWeb.SessionLive do
       persist_outputs: data.notebook.persist_outputs,
       autosave_interval_s: data.notebook.autosave_interval_s,
       default_language: data.notebook.default_language,
+      read_only: data.notebook.read_only,
       dirty: data.dirty,
       persistence_warnings: data.persistence_warnings,
       runtime: data.runtime,

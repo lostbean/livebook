@@ -15,6 +15,7 @@ defmodule LivebookWeb.SessionLive.SectionComponent do
         data-p-id={hook_prop(@section_view.id)}
         data-p-on-value-change={hook_prop("set_section_name")}
         data-p-metadata={hook_prop(@section_view.id)}
+        data-p-read-only={hook_prop(@read_only)}
       >
         <div class="absolute left-0 top-0 bottom-0 transform -translate-x-full w-10 flex justify-end items-center pr-2">
           <.icon_button
@@ -49,6 +50,7 @@ defmodule LivebookWeb.SessionLive.SectionComponent do
           phx-no-format
         >{@section_view.name}</h2>
         <div
+          :if={not @read_only}
           class="ml-4 flex space-x-2 items-center"
           data-el-section-actions
           role="toolbar"
@@ -142,6 +144,7 @@ defmodule LivebookWeb.SessionLive.SectionComponent do
       <div class="container" data-el-section-content>
         <div class="flex flex-col space-y-1">
           <.live_component
+            :if={not @read_only}
             module={LivebookWeb.SessionLive.InsertButtonsComponent}
             id={"insert-buttons-#{@section_view.id}-first"}
             persistent={@section_view.cell_views == []}
@@ -165,8 +168,10 @@ defmodule LivebookWeb.SessionLive.SectionComponent do
               allowed_uri_schemes={@allowed_uri_schemes}
               enabled_languages={@enabled_languages}
               cell_view={cell_view}
+              read_only={@read_only}
             />
             <.live_component
+              :if={not @read_only}
               module={LivebookWeb.SessionLive.InsertButtonsComponent}
               id={"insert-buttons-#{@section_view.id}-#{index}"}
               persistent={false}

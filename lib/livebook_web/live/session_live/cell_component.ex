@@ -10,7 +10,10 @@ defmodule LivebookWeb.SessionLive.CellComponent do
 
   @impl true
   def update(assigns, socket) do
-    socket = assign(socket, assigns)
+    socket =
+      socket
+      |> assign(assigns)
+      |> assign_new(:read_only, fn -> false end)
 
     socket =
       case assigns.cell_view do
@@ -59,11 +62,11 @@ defmodule LivebookWeb.SessionLive.CellComponent do
     ~H"""
     <.cell_actions>
       <:secondary>
-        <.enable_insert_mode_button />
+        <.enable_insert_mode_button :if={not @read_only} />
         <.cell_link_button cell_id={@cell_view.id} />
-        <.move_cell_up_button cell_id={@cell_view.id} />
-        <.move_cell_down_button cell_id={@cell_view.id} />
-        <.delete_cell_button cell_id={@cell_view.id} />
+        <.move_cell_up_button :if={not @read_only} cell_id={@cell_view.id} />
+        <.move_cell_down_button :if={not @read_only} cell_id={@cell_view.id} />
+        <.delete_cell_button :if={not @read_only} cell_id={@cell_view.id} />
       </:secondary>
     </.cell_actions>
     <.cell_body>
@@ -73,6 +76,7 @@ defmodule LivebookWeb.SessionLive.CellComponent do
           tag="primary"
           empty={@cell_view.empty}
           language="markdown"
+          read_only={@read_only}
         />
       </div>
       <div
@@ -118,6 +122,7 @@ defmodule LivebookWeb.SessionLive.CellComponent do
             empty={@cell_view.empty}
             language="elixir"
             intellisense
+            read_only={@read_only}
           />
         </div>
         <div class="absolute bottom-2 right-2" data-el-cell-indicators>
@@ -148,7 +153,7 @@ defmodule LivebookWeb.SessionLive.CellComponent do
       </:primary>
       <:secondary>
         <.cell_link_button cell_id={@cell_view.id} />
-        <.disable_language_button language={:python} />
+        <.disable_language_button :if={not @read_only} language={:python} />
         <.pyproject_toml_cell_info />
       </:secondary>
     </.cell_actions>
@@ -160,6 +165,7 @@ defmodule LivebookWeb.SessionLive.CellComponent do
             tag="primary"
             empty={@cell_view.empty}
             language="pyproject.toml"
+            read_only={@read_only}
           />
         </div>
         <div class="absolute bottom-2 right-2" data-el-cell-indicators>
@@ -191,12 +197,12 @@ defmodule LivebookWeb.SessionLive.CellComponent do
         />
       </:primary>
       <:secondary>
-        <.cell_settings_button cell_id={@cell_view.id} session_id={@session_id} />
+        <.cell_settings_button :if={not @read_only} cell_id={@cell_view.id} session_id={@session_id} />
         <.amplify_output_button />
         <.cell_link_button cell_id={@cell_view.id} />
-        <.move_cell_up_button cell_id={@cell_view.id} />
-        <.move_cell_down_button cell_id={@cell_view.id} />
-        <.delete_cell_button cell_id={@cell_view.id} />
+        <.move_cell_up_button :if={not @read_only} cell_id={@cell_view.id} />
+        <.move_cell_down_button :if={not @read_only} cell_id={@cell_view.id} />
+        <.delete_cell_button :if={not @read_only} cell_id={@cell_view.id} />
       </:secondary>
     </.cell_actions>
     <.cell_body>
@@ -208,6 +214,7 @@ defmodule LivebookWeb.SessionLive.CellComponent do
             empty={@cell_view.empty}
             language={@cell_view.language}
             intellisense={@cell_view.language in [:elixir, :erlang]}
+            read_only={@read_only}
           />
         </div>
         <div class="absolute bottom-2 right-2" data-el-cell-indicators>
@@ -255,12 +262,12 @@ defmodule LivebookWeb.SessionLive.CellComponent do
       </:primary>
       <:secondary>
         <.toggle_source_button />
-        <.convert_smart_cell_button cell_id={@cell_view.id} />
+        <.convert_smart_cell_button :if={not @read_only} cell_id={@cell_view.id} />
         <.amplify_output_button />
         <.cell_link_button cell_id={@cell_view.id} />
-        <.move_cell_up_button cell_id={@cell_view.id} />
-        <.move_cell_down_button cell_id={@cell_view.id} />
-        <.delete_cell_button cell_id={@cell_view.id} />
+        <.move_cell_up_button :if={not @read_only} cell_id={@cell_view.id} />
+        <.move_cell_down_button :if={not @read_only} cell_id={@cell_view.id} />
+        <.delete_cell_button :if={not @read_only} cell_id={@cell_view.id} />
       </:secondary>
     </.cell_actions>
     <.cell_body>

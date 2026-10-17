@@ -16,6 +16,7 @@ defmodule LivebookWeb.SessionLive.Render do
       phx-hook="Session"
       data-p-global-status={hook_prop(elem(@data_view.global_status, 0))}
       data-p-autofocus-cell-id={hook_prop(@autofocus_cell_id)}
+      data-p-read-only={hook_prop(@data_view.read_only)}
     >
       <.sidebar
         session={@session}
@@ -35,6 +36,7 @@ defmodule LivebookWeb.SessionLive.Render do
           autosave_interval_s={@data_view.autosave_interval_s}
           runtime_status={@data_view.runtime_status}
           global_status={@data_view.global_status}
+          read_only={@data_view.read_only}
         />
         <.notebook_content
           data_view={@data_view}
@@ -85,6 +87,7 @@ defmodule LivebookWeb.SessionLive.Render do
         context={@action_assigns.context}
         persist_outputs={@data_view.persist_outputs}
         autosave_interval_s={@data_view.autosave_interval_s}
+        read_only={@data_view.read_only}
         file_systems={@data_view.hub_file_systems}
       />
     </.modal>
@@ -1034,6 +1037,7 @@ defmodule LivebookWeb.SessionLive.Render do
           data-el-notebook-indicators
         >
           <.view_indicator />
+          <.read_only_indicator :if={@read_only} />
           <.persistence_indicator
             mode={@mode}
             file={@file}
@@ -1299,6 +1303,16 @@ defmodule LivebookWeb.SessionLive.Render do
     ]
   end
 
+  defp read_only_indicator(assigns) do
+    ~H"""
+    <span class="tooltip left" data-tooltip="Read-only mode">
+      <span class="text-sm font-medium text-gray-400 cursor-default">
+        <.remix_icon icon="lock-line" />
+      </span>
+    </span>
+    """
+  end
+
   defp insert_mode_indicator(assigns) do
     ~H"""
     <%!-- Note: this indicator is shown/hidden using CSS based on the current mode --%>
@@ -1327,6 +1341,7 @@ defmodule LivebookWeb.SessionLive.Render do
             data-p-id={hook_prop("notebook")}
             data-p-on-value-change={hook_prop("set_notebook_name")}
             data-p-metadata={hook_prop("notebook")}
+            data-p-read-only={hook_prop(@data_view.read_only)}
           >
             <h1
               class="px-1 -ml-1.5 text-3xl font-semibold text-gray-800 border border-transparent rounded-lg whitespace-pre-wrap"
@@ -1389,6 +1404,7 @@ defmodule LivebookWeb.SessionLive.Render do
             allowed_uri_schemes={@allowed_uri_schemes}
             enabled_languages={@data_view.enabled_languages}
             cell_view={setup_cell_view}
+            read_only={@data_view.read_only}
           />
         </div>
         <div
@@ -1410,7 +1426,7 @@ defmodule LivebookWeb.SessionLive.Render do
         </div>
       </div>
       <div class="mt-8 flex flex-col w-full space-y-16" data-el-sections-container>
-        <div :if={@data_view.section_views == []} class="flex justify-center">
+        <div :if={@data_view.section_views == [] and not @data_view.read_only} class="flex justify-center">
           <LivebookWeb.SessionLive.InsertButtonsComponent.insert_button phx-click="append_section">
             + Section
           </LivebookWeb.SessionLive.InsertButtonsComponent.insert_button>
@@ -1431,6 +1447,7 @@ defmodule LivebookWeb.SessionLive.Render do
           section_view={section_view}
           default_language={@data_view.default_language}
           enabled_languages={@data_view.enabled_languages}
+          read_only={@data_view.read_only}
         />
         <div style="height: 80vh"></div>
       </div>

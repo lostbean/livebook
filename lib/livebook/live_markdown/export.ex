@@ -84,6 +84,7 @@ defmodule Livebook.LiveMarkdown.Export do
       :persist_outputs,
       :autosave_interval_s,
       :default_language,
+      :read_only,
       :hub_id,
       :deployment_group_id
     ]

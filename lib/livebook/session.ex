@@ -934,6 +934,7 @@ defmodule Livebook.Session do
              else: :ok
            ) do
       state = schedule_autosave(state)
+      state = schedule_file_watcher(state)
       state = schedule_auto_shutdown(state)
 
       if file = state.data.file do
@@ -987,7 +988,9 @@ defmodule Livebook.Session do
         auto_shutdown_ms: opts[:auto_shutdown_ms],
         auto_shutdown_timer_ref: nil,
         started_by: opts[:started_by],
-        deployed_by: opts[:deployed_by]
+        deployed_by: opts[:deployed_by],
+        file_watcher_timer_ref: nil,
+        file_watcher_md5: nil
       }
 
       {:ok, state}
@@ -1028,11 +1031,15 @@ defmodule Livebook.Session do
   end
 
   defp schedule_autosave(state) do
-    if interval_s = state.data.notebook.autosave_interval_s do
-      ref = Process.send_after(self(), :autosave, interval_s * 1000)
-      %{state | autosave_timer_ref: ref}
-    else
+    if state.data.notebook.read_only do
       %{state | autosave_timer_ref: nil}
+    else
+      if interval_s = state.data.notebook.autosave_interval_s do
+        ref = Process.send_after(self(), :autosave, interval_s * 1000)
+        %{state | autosave_timer_ref: ref}
+      else
+        %{state | autosave_timer_ref: nil}
+      end
     end
   end
 
@@ -1046,6 +1053,35 @@ defmodule Livebook.Session do
     end
 
     %{state | autosave_timer_ref: nil}
+  end
+
+  defp schedule_file_watcher(state) do
+    if state.data.notebook.read_only and state.data.file do
+      md5 = state.file_watcher_md5 || compute_file_md5(state.data.file)
+      ref = Process.send_after(self(), :check_file_changed, 2_000)
+      %{state | file_watcher_timer_ref: ref, file_watcher_md5: md5}
+    else
+      %{state | file_watcher_timer_ref: nil, file_watcher_md5: nil}
+    end
+  end
+
+  defp unschedule_file_watcher(%{file_watcher_timer_ref: nil} = state), do: state
+
+  defp unschedule_file_watcher(state) do
+    if Process.cancel_timer(state.file_watcher_timer_ref) == false do
+      receive do
+        :check_file_changed -> :ok
+      end
+    end
+
+    %{state | file_watcher_timer_ref: nil}
+  end
+
+  defp compute_file_md5(file) do
+    case Livebook.FileSystem.File.read(file) do
+      {:ok, content} -> :crypto.hash(:md5, content)
+      _ -> nil
+    end
   end
 
   defp schedule_auto_shutdown(state) do
@@ -1880,6 +1916,36 @@ defmodule Livebook.Session do
     {:noreply, state |> maybe_save_notebook_async() |> schedule_autosave()}
   end
 
+  def handle_info(:check_file_changed, state) do
+    state = %{state | file_watcher_timer_ref: nil}
+
+    state =
+      if state.data.notebook.read_only and state.data.file do
+        case Livebook.FileSystem.File.read(state.data.file) do
+          {:ok, content} ->
+            new_md5 = :crypto.hash(:md5, content)
+
+            if new_md5 != state.file_watcher_md5 do
+              {new_notebook, _info} =
+                Livebook.LiveMarkdown.Import.notebook_from_livemd(content)
+
+              operation = {:reload_from_file, @client_id, new_notebook}
+              state = handle_operation(state, operation)
+              %{state | file_watcher_md5: new_md5}
+            else
+              state
+            end
+
+          _ ->
+            state
+        end
+      else
+        state
+      end
+
+    {:noreply, schedule_file_watcher(state)}
+  end
+
   def handle_info({:user_change, user}, state) do
     operation = {:update_user, @client_id, user}
     {:noreply, handle_operation(state, operation)}
@@ -2579,6 +2645,18 @@ defmodule Livebook.Session do
   defp after_operation(state, _prev_state, {:delete_file_entry, _client_id, name}) do
     cleanup_file_entries(state, [name])
     state
+  end
+
+  defp after_operation(
+         state,
+         _prev_state,
+         {:set_notebook_attributes, _client_id, %{read_only: _}}
+       ) do
+    state
+    |> unschedule_file_watcher()
+    |> schedule_file_watcher()
+    |> unschedule_autosave()
+    |> schedule_autosave()
   end
 
   defp after_operation(state, _prev_state, _operation), do: state

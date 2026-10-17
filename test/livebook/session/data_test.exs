@@ -5102,4 +5102,118 @@ defmodule Livebook.Session.DataTest do
       {:runtime_connected, @cid, runtime}
     ]
   end
+
+  describe "apply_operation/2 given :set_notebook_attributes with read_only" do
+    test "updates notebook read_only attribute" do
+      data = Data.new()
+
+      attrs = %{read_only: true}
+      operation = {:set_notebook_attributes, @cid, attrs}
+
+      assert {:ok, %{notebook: %{read_only: true}}, _} = Data.apply_operation(data, operation)
+    end
+  end
+
+  describe "apply_operation/2 given :reload_from_file" do
+    test "unchanged cells keep their cell ids and outputs" do
+      data =
+        data_after_operations!([
+          {:client_join, @cid, User.new()},
+          {:insert_section, @cid, 0, "s1"},
+          {:insert_cell, @cid, "s1", 0, :code, "c1", %{}},
+          {:insert_cell, @cid, "s1", 1, :code, "c2", %{}},
+          {:apply_cell_delta, @cid, "c1", :primary,
+           Delta.new() |> Delta.insert("x = 1"), nil, 0},
+          {:apply_cell_delta, @cid, "c2", :primary,
+           Delta.new() |> Delta.insert("y = 2"), nil, 0},
+          connect_noop_runtime_operations(),
+          evaluate_cells_operations([@setup_id, "c1", "c2"]),
+          {:add_cell_evaluation_output, @cid, "c1", @stdout},
+          {:add_cell_evaluation_output, @cid, "c2", @stdout}
+        ])
+
+      # Verify outputs exist before reload
+      [section_before] = data.notebook.sections
+      [c1_before, c2_before] = section_before.cells
+      assert length(c1_before.outputs) > 0
+      assert length(c2_before.outputs) > 0
+
+      # Build a new notebook with the same cell sources
+      new_notebook = %{
+        Notebook.new()
+        | sections: [
+            %{Notebook.Section.new() | name: "Section 1", cells: [
+              %{Notebook.Cell.new(:code) | source: "x = 1"},
+              %{Notebook.Cell.new(:code) | source: "y = 2"}
+            ]}
+          ]
+      }
+
+      operation = {:reload_from_file, @cid, new_notebook}
+      assert {:ok, data, _} = Data.apply_operation(data, operation)
+
+      # The cells with unchanged source should retain the old ids
+      [section] = data.notebook.sections
+      [cell1, cell2] = section.cells
+      assert cell1.id == "c1"
+      assert cell2.id == "c2"
+
+      # Unchanged cells should also preserve their outputs
+      assert cell1.outputs == c1_before.outputs
+      assert cell2.outputs == c2_before.outputs
+    end
+
+    test "changed cells get new ids" do
+      data =
+        data_after_operations!([
+          {:client_join, @cid, User.new()},
+          {:insert_section, @cid, 0, "s1"},
+          {:insert_cell, @cid, "s1", 0, :code, "c1", %{}},
+          {:apply_cell_delta, @cid, "c1", :primary,
+           Delta.new() |> Delta.insert("x = 1"), nil, 0}
+        ])
+
+      # Build a new notebook with changed source for cell
+      new_notebook = %{
+        Notebook.new()
+        | sections: [
+            %{Notebook.Section.new() | name: "Section 1", cells: [
+              %{Notebook.Cell.new(:code) | source: "changed_source"}
+            ]}
+          ]
+      }
+
+      operation = {:reload_from_file, @cid, new_notebook}
+      assert {:ok, data, _} = Data.apply_operation(data, operation)
+
+      [section] = data.notebook.sections
+      [cell] = section.cells
+      # Changed cell gets new id (not "c1")
+      assert cell.id != "c1"
+      assert cell.source == "changed_source"
+    end
+
+    test "preserves read_only from old notebook" do
+      data =
+        data_after_operations!([
+          {:set_notebook_attributes, @cid, %{read_only: true}},
+          {:insert_section, @cid, 0, "s1"},
+          {:insert_cell, @cid, "s1", 0, :code, "c1", %{}}
+        ])
+
+      new_notebook = %{
+        Notebook.new()
+        | sections: [
+            %{Notebook.Section.new() | name: "Section 1", cells: [
+              %{Notebook.Cell.new(:code) | source: "new"}
+            ]}
+          ]
+      }
+
+      operation = {:reload_from_file, @cid, new_notebook}
+      assert {:ok, data, _} = Data.apply_operation(data, operation)
+
+      assert data.notebook.read_only == true
+    end
+  end
 end

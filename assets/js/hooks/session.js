@@ -288,7 +288,7 @@ const Session = {
   },
 
   getProps() {
-    return parseHookProps(this.el, ["autofocus-cell-id", "global-status"]);
+    return parseHookProps(this.el, ["autofocus-cell-id", "global-status", "read-only"]);
   },
 
   faviconForEvaluationStatus(evaluationStatus) {
@@ -380,7 +380,7 @@ const Session = {
     } else {
       keyBuffer.push(event.key);
 
-      if (keyBuffer.tryMatch(["d", "d"])) {
+      if (keyBuffer.tryMatch(["d", "d"]) && !this.props.readOnly) {
         this.deleteFocusedCell();
       } else if (keyBuffer.tryMatch(["e", "a"])) {
         this.queueFullCellsEvaluation(false);
@@ -415,12 +415,13 @@ const Session = {
       } else if (keyBuffer.tryMatch(["?"])) {
         this.showShortcuts();
       } else if (
-        keyBuffer.tryMatch(["i"]) ||
-        (event.target.matches(
-          `body, [data-el-cell-body], [data-el-heading], [data-focusable-id]`,
-        ) &&
-          this.focusedId &&
-          key === "Enter")
+        !this.props.readOnly &&
+        (keyBuffer.tryMatch(["i"]) ||
+          (event.target.matches(
+            `body, [data-el-cell-body], [data-el-heading], [data-focusable-id]`,
+          ) &&
+            this.focusedId &&
+            key === "Enter"))
       ) {
         cancelEvent(event);
         if (this.isInsertModeAvailable()) {
@@ -430,19 +431,19 @@ const Session = {
         this.moveFocus(1);
       } else if (keyBuffer.tryMatch(["k"])) {
         this.moveFocus(-1);
-      } else if (keyBuffer.tryMatch(["J"])) {
+      } else if (keyBuffer.tryMatch(["J"]) && !this.props.readOnly) {
         this.moveFocusedCell(1);
-      } else if (keyBuffer.tryMatch(["K"])) {
+      } else if (keyBuffer.tryMatch(["K"]) && !this.props.readOnly) {
         this.moveFocusedCell(-1);
-      } else if (keyBuffer.tryMatch(["n"])) {
+      } else if (keyBuffer.tryMatch(["n"]) && !this.props.readOnly) {
         this.insertCellBelowFocused("code");
-      } else if (keyBuffer.tryMatch(["N"])) {
+      } else if (keyBuffer.tryMatch(["N"]) && !this.props.readOnly) {
         this.insertCellAboveFocused("code");
-      } else if (keyBuffer.tryMatch(["m"])) {
+      } else if (keyBuffer.tryMatch(["m"]) && !this.props.readOnly) {
         if (!this.view || this.viewOptions.showMarkdown) {
           this.insertCellBelowFocused("markdown");
         }
-      } else if (keyBuffer.tryMatch(["M"])) {
+      } else if (keyBuffer.tryMatch(["M"]) && !this.props.readOnly) {
         if (!this.view || this.viewOptions.showMarkdown) {
           this.insertCellAboveFocused("markdown");
         }

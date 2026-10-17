@@ -1511,4 +1511,26 @@ defmodule Livebook.LiveMarkdown.ImportTest do
       assert notebook.quarantine_file_entry_names == MapSet.new(["document1.pdf"])
     end
   end
+
+  test "imports notebook :read_only attribute" do
+    markdown = """
+    <!-- livebook:{"read_only":true} -->
+
+    # My Notebook
+    """
+
+    {notebook, %{warnings: []}} = Import.notebook_from_livemd(markdown)
+
+    assert %Notebook{name: "My Notebook", read_only: true} = notebook
+  end
+
+  test "defaults read_only to false when not present in metadata" do
+    markdown = """
+    # My Notebook
+    """
+
+    {notebook, %{warnings: []}} = Import.notebook_from_livemd(markdown)
+
+    assert notebook.read_only == false
+  end
 end
